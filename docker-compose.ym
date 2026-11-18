@@ -1,0 +1,10 @@
+services:
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: qdrant
+    ports:
+      - "6333:6333"   # API REST + dashboard
+      - "6334:6334"   # gRPC (opcional, pode remover)
+    volumes:
+      - ./qdrant_storage:/qdrant/storage
+    restart: unless-stopped
