@@ -146,7 +146,7 @@ docker compose config
 Na raiz do projeto:
 
 ```powershell
-cd C:\Users\USUARIO\Desktop\Codigo\Projeto-deloitte-MCP
+cd C:\Users\USUARIO\Desktop\Projeto-deloitte-MCP
 ```
 
 ### 1. Criar o ambiente virtual
