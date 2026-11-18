@@ -3,13 +3,16 @@ from langgraph.checkpoint.memory import InMemorySaver
 
 from src.graph.state import State
 from src.graph.routing import (
+    route_after_navegador,
     router_after_review,
     route_after_validate,
     route_after_execute,
 )
 
 from src.graph.Node.ler_estado import ler_estado
+from src.graph.Node.consultar_conhecimento import consultar_conhecimento
 from src.graph.Node.navegador import navegador
+from src.graph.Node.responder import responder
 from src.graph.Node.revisor import revisor
 from src.graph.Node.validar import validar
 from src.graph.Node.executar import executar
@@ -22,7 +25,9 @@ builder = StateGraph(State)
 
 # Registro dos nós
 builder.add_node("ler_estado", ler_estado)
+builder.add_node("consultar_conhecimento", consultar_conhecimento)
 builder.add_node("navegador", navegador)
+builder.add_node("responder", responder)
 builder.add_node("revisor", revisor)
 builder.add_node("validar", validar)
 builder.add_node("executar", executar)
@@ -32,8 +37,19 @@ builder.add_node("finalizar", finalizar)
 
 # Fluxo inicial
 builder.add_edge(START, "ler_estado")
-builder.add_edge("ler_estado", "navegador")
-builder.add_edge("navegador", "revisor")
+builder.add_edge("ler_estado", "consultar_conhecimento")
+builder.add_edge("consultar_conhecimento", "navegador")
+
+# Decisão do navegador: ação no navio (vai ao revisor) ou resposta/recusa direta
+builder.add_conditional_edges(
+    "navegador",
+    route_after_navegador,
+    {
+        "revisor": "revisor",
+        "responder": "responder",
+    }
+)
+builder.add_edge("responder", END)
 
 # Decisão do revisor
 builder.add_conditional_edges(

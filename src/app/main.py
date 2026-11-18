@@ -1,16 +1,18 @@
 import asyncio
+import uuid
 
 from dotenv import load_dotenv
-from src.graph.state import State
-from src.graph.builder import graph
 from langgraph.types import Command
 
+from src.graph.state import State, PERGUNTA_PADRAO
+from src.graph.builder import graph
 
-async def main():
-    load_dotenv()
+NAVIOS = {"1": "S1-FAROL", "2": "S2-MARE", "3": "S3-CORAL"}
 
+
+def escolher_navio() -> str:
     while True:
-        escolha_navio = input(
+        escolha = input(
             "\nEscolha um navio para a simulação:\n"
             "1. S1-FAROL\n"
             "2. S2-MARE\n"
@@ -18,27 +20,25 @@ async def main():
             "Escolha (1-3): "
         ).strip()
 
-        match escolha_navio:
-            case "1":
-                ship_id = "S1-FAROL"
-            case "2":
-                ship_id = "S2-MARE"
-            case "3":
-                ship_id = "S3-CORAL"
-            case _:
-                print("Opção inválida. Tente novamente.")
-                continue
-        break
+        if escolha in NAVIOS:
+            return NAVIOS[escolha]
 
+        print("Opção inválida. Tente novamente.")
+
+
+async def executar_simulacao(ship_id: str, pergunta: str) -> None:
     estado_inicial: State = {
         "ship_id": ship_id,
+        "pergunta": pergunta,
         "rodada": 0,
         "tentativas": 0,
     }
 
+    # thread_id novo a cada execução: o checkpointer não reaproveita
+    # estado de simulações anteriores.
     config = {
         "configurable": {
-            "thread_id": "frota-1"
+            "thread_id": f"frota-{uuid.uuid4().hex[:8]}"
         }
     }
 
@@ -76,7 +76,28 @@ async def main():
             config=config
         )
 
-    print(resposta["resultado"])
+    print(f"\n{resposta['resultado']}")
+
+
+async def main():
+    load_dotenv()
+
+    ship_id = escolher_navio()
+
+    while True:
+        pergunta = input(
+            f"\n[{ship_id}] Digite uma pergunta ou instrução "
+            "(Enter = avaliação padrão, 'trocar' = outro navio, 'sair' = encerrar): "
+        ).strip()
+
+        if pergunta.lower() == "sair":
+            break
+
+        if pergunta.lower() == "trocar":
+            ship_id = escolher_navio()
+            continue
+
+        await executar_simulacao(ship_id, pergunta or PERGUNTA_PADRAO)
 
 
 if __name__ == "__main__":

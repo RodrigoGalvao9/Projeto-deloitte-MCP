@@ -1,5 +1,13 @@
-
 from src.graph.state import State
+
+
+def route_after_navegador(state: State) -> str:
+    """Ações que alteram (ou mantêm) o navio passam pelo revisor.
+    Perguntas informativas ou fora do escopo são respondidas direto."""
+    if state["proposta"]["acao"] in ("RESPONDER", "RECUSAR"):
+        return "responder"
+
+    return "revisor"
 
 
 def router_after_review(state: State) -> str:

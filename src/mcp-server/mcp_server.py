@@ -3,6 +3,11 @@ import json
 import hashlib
 import threading
 from pathlib import Path
+import sys
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent)) 
+from rag.embeddings import embed
+from rag.retriever import buscar
 
 from fastmcp import FastMCP
 
@@ -29,6 +34,15 @@ def get_fleet_state() -> dict:
     with LOCK:
         return {"navios": [dict(n) for n in FROTA.values()]}
 
+@mcp.tool
+def buscar_conhecimento(query: str, k: int = 4) -> dict:
+    """Busca trechos na base de conhecimento marítimo: limites de vento e ondas,
+    rotas, marés e procedimentos de tempestade."""
+    k = max(1, min(k, 8))
+    try:
+        return {"resultados": buscar(query, k)}
+    except Exception as e:
+        return _erro("RAG_UNAVAILABLE", f"Falha na busca: {e}")
 
 @mcp.tool
 def set_speed(
@@ -108,4 +122,5 @@ def set_speed(
 
 
 if __name__ == "__main__":
+    embed(["aquecimento"])  # carrega o modelo antes da primeira chamada
     mcp.run(transport="http", host="127.0.0.1", port=8000)

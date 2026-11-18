@@ -1,9 +1,14 @@
 from typing import TypedDict
 
+# Pergunta usada quando o operador não digita nada.
+PERGUNTA_PADRAO = "Avalie a situação do navio e decida a ação adequada."
+
 
 class State(TypedDict, total=False):
     ship_id: str
+    pergunta: str
     navio: dict
+    conhecimento: list[dict]
     proposta: dict
     revisao: dict
 
@@ -22,7 +27,9 @@ class State(TypedDict, total=False):
 
 ESTADO_INICIAL: State = {
     "ship_id": "",
+    "pergunta": "",
     "navio": {},
+    "conhecimento": [],
     "proposta": {},
     "revisao": {},
     "rodada": 0,
