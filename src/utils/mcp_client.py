@@ -1,9 +1,20 @@
-
 import json
+import os
+
+from fastmcp.client import Client
 from langchain.mcp import MCPAdapter
 
 
-MCP_SERVER_URL = "http://127.0.0.1:8000/mcp"
+def _criar_cliente() -> Client:
+    """Cria o cliente MCP. URL e token vêm do ambiente (.env).
+    São lidos aqui, e não no import, porque o load_dotenv() roda depois dos imports."""
+    url = os.getenv("MCP_SERVER_URL", "http://127.0.0.1:8000/mcp")
+    token = os.getenv("MCP_AUTH_TOKEN")
+
+    if token:
+        return Client(url, auth=token)
+
+    return Client(url)
 
 
 async def get_tools_by_name():
@@ -12,7 +23,7 @@ async def get_tools_by_name():
     as ferramentas em um dicionário pelo nome.
     """
 
-    async with MCPAdapter(MCP_SERVER_URL) as adapter:
+    async with MCPAdapter(_criar_cliente()) as adapter:
         tools = await adapter.list_tools()
 
     return {

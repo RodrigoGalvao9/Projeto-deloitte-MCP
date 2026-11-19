@@ -1,5 +1,16 @@
+# Segredos e ambiente local
 .env
+.env.*
+!.env.example
+venv/
+.venv/
+
+# Python
 __pycache__/
 *.pyc
-.venv/
+
+# Dados gerados pelo Docker (Qdrant local)
 qdrant_storage/
+
+# Configuração local do editor
+.vscode/
