@@ -20,7 +20,7 @@ DADOS = Path(__file__).resolve().parent.parent / "dados" / "situacao_tempestade.
 
 def _criar_auth():
     """Autenticação por token (Bearer). Sem MCP_AUTH_TOKEN, o servidor fica aberto (uso local)."""
-    token = os.getenv("MCP_AUTH_TOKEN")
+    token = (os.getenv("MCP_AUTH_TOKEN") or "").strip()
 
     if not token:
         print("AVISO: MCP_AUTH_TOKEN não definido; servidor SEM autenticação.")

@@ -1,18 +1,27 @@
 import json
 import os
+from pathlib import Path
 
 from fastmcp.client import Client
+from fastmcp.client.auth import BearerAuth
+from dotenv import load_dotenv
 from langchain.mcp import MCPAdapter
+
+RAIZ = Path(__file__).resolve().parents[2]
+load_dotenv(RAIZ / ".env")
 
 
 def _criar_cliente() -> Client:
     """Cria o cliente MCP. URL e token vêm do ambiente (.env).
     São lidos aqui, e não no import, porque o load_dotenv() roda depois dos imports."""
-    url = os.getenv("MCP_SERVER_URL", "http://127.0.0.1:8000/mcp")
-    token = os.getenv("MCP_AUTH_TOKEN")
+    url = os.getenv("MCP_SERVER_URL", "http://127.0.0.1:8000/mcp").strip()
+    token = (os.getenv("MCP_AUTH_TOKEN") or "").strip()
+
+    if not url.startswith(("http://", "https://")):
+        raise RuntimeError("MCP_SERVER_URL deve começar com http:// ou https://")
 
     if token:
-        return Client(url, auth=token)
+        return Client(url, auth=BearerAuth(token))
 
     return Client(url)
 
