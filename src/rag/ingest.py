@@ -1,4 +1,4 @@
-"""Ingestão: lê a base_conhecimento do JSON, gera embeddings e grava no Qdrant.
+"""Ingestão: lê a base_conhecimento do JSON, gera embeddings (denso + BM25) e grava no Qdrant.
 
 Execução (a partir da raiz do projeto):
     python -m src.rag.ingest
@@ -7,7 +7,14 @@ Execução (a partir da raiz do projeto):
 import json
 
 from qdrant_client import QdrantClient
-from qdrant_client.models import Distance, PointStruct, VectorParams
+from qdrant_client.models import (
+    Distance,
+    Modifier,
+    PointStruct,
+    SparseVector,
+    SparseVectorParams,
+    VectorParams,
+)
 
 from .config import (
     COLLECTION,
@@ -15,8 +22,10 @@ from .config import (
     EMBEDDING_DIM,
     QDRANT_API_KEY,
     QDRANT_URL,
+    VETOR_DENSO,
+    VETOR_ESPARSO,
 )
-from .embeddings import embed
+from .embeddings import embed, embed_esparso
 
 
 def carregar_documentos() -> list[dict]:
@@ -30,9 +39,10 @@ def main() -> None:
 
     # O texto que vira vetor: título + corpo. O título ajuda a busca a acertar o assunto.
     textos = [f"{d['titulo']}. {d['texto']}" for d in docs]
-    vetores = embed(textos)
-    assert len(vetores[0]) == EMBEDDING_DIM, (
-        f"Dimensão {len(vetores[0])} difere de EMBEDDING_DIM={EMBEDDING_DIM}"
+    densos = embed(textos)
+    esparsos = embed_esparso(textos)
+    assert len(densos[0]) == EMBEDDING_DIM, (
+        f"Dimensão {len(densos[0])} difere de EMBEDDING_DIM={EMBEDDING_DIM}"
     )
 
     client = QdrantClient(url=QDRANT_URL, api_key=QDRANT_API_KEY)
@@ -41,15 +51,25 @@ def main() -> None:
     # Assim, documentos removidos do JSON também somem do banco.
     if client.collection_exists(COLLECTION):
         client.delete_collection(COLLECTION)
+
     client.create_collection(
         collection_name=COLLECTION,
-        vectors_config=VectorParams(size=EMBEDDING_DIM, distance=Distance.COSINE),
+        vectors_config={
+            VETOR_DENSO: VectorParams(size=EMBEDDING_DIM, distance=Distance.COSINE),
+        },
+        sparse_vectors_config={
+            # IDF: palavras raras pesam mais que palavras comuns (metade do cálculo do BM25)
+            VETOR_ESPARSO: SparseVectorParams(modifier=Modifier.IDF),
+        },
     )
 
     pontos = [
         PointStruct(
             id=i,
-            vector=vetor,
+            vector={
+                VETOR_DENSO: denso,
+                VETOR_ESPARSO: SparseVector(indices=indices, values=valores),
+            },
             payload={
                 "doc_id": d["id"],
                 "titulo": d["titulo"],
@@ -57,7 +77,7 @@ def main() -> None:
                 "texto": d["texto"],
             },
         )
-        for i, (d, vetor) in enumerate(zip(docs, vetores))
+        for i, (d, denso, (indices, valores)) in enumerate(zip(docs, densos, esparsos))
     ]
     client.upsert(collection_name=COLLECTION, points=pontos)
     print(f"{len(pontos)} pontos gravados na coleção '{COLLECTION}' ({QDRANT_URL})")
