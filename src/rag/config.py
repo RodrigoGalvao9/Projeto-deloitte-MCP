@@ -19,8 +19,18 @@ QDRANT_API_KEY = os.getenv("QDRANT_API_KEY") or None  # "" vira None (local não
 COLLECTION = os.getenv("QDRANT_COLLECTION", "conhecimento_maritimo")
 
 # --- Embeddings (fastembed, roda em CPU, entende português) ---
-EMBEDDING_MODEL = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
-EMBEDDING_DIM = 384
+CLOUDFLARE_ACCOUNT_ID = os.getenv("CLOUDFLARE_ACCOUNT_ID")
+CLOUDFLARE_API_TOKEN = os.getenv("CLOUDFLARE_API_TOKEN")
+
+EMBEDDING_MODEL = "@cf/google/embeddinggemma-2"
+EMBEDDING_DIM = 512
+
+CLOUDFLARE_EMBEDDING_URL = (
+    f"https://api.cloudflare.com/client/v4/accounts/"
+    f"{CLOUDFLARE_ACCOUNT_ID}/ai/run/{EMBEDDING_MODEL}"
+    if CLOUDFLARE_ACCOUNT_ID
+    else None
+)
 
 # --- Busca esparsa (BM25: casa palavras exatas, complementa a busca por sentido) ---
 SPARSE_MODEL = "Qdrant/bm25"
