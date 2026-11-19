@@ -25,15 +25,26 @@ async def _buscar(ferramenta, query: str, k: int) -> list[dict]:
 async def consultar_conhecimento(state: State) -> State:
     """Busca na base de conhecimento (RAG, via MCP) os trechos relevantes.
 
-    - Pergunta digitada: busca pelo texto da pergunta (é isso que testa o RAG).
+    - Pergunta digitada: busca pela consulta reescrita (entender_pergunta) ou, se ela
+      não existir, pelo texto original da pergunta. É isso que testa o RAG.
     - Sempre: busca por contexto do navio, para trazer as regras de velocidade.
     Os resultados são unidos, sem repetir trechos.
+
+    Dois desfechos distintos para o resto do grafo:
+    - busca funcionou (mesmo sem trechos): erro_rag = "" ("a base não contém");
+    - busca falhou: conhecimento = [] e erro_rag preenchido ("base indisponível").
+    erro_rag é sempre escrito, para limpar um erro de uma passagem anterior (o grafo
+    volta a este nó após STATE_VERSION_CONFLICT).
     """
     pergunta = state.get("pergunta") or PERGUNTA_PADRAO
+    consulta = (state.get("consulta") or "").strip()
 
     consultas = []
     if pergunta != PERGUNTA_PADRAO:
-        consultas.append(("pergunta", pergunta, 4))
+        if consulta:
+            consultas.append(("pergunta reescrita", consulta, 4))
+        else:
+            consultas.append(("pergunta", pergunta, 4))
     consultas.append(("contexto do navio", _montar_query_contexto(state["navio"]), 3))
 
     try:
@@ -48,9 +59,10 @@ async def consultar_conhecimento(state: State) -> State:
                 trechos_por_id.setdefault(t["id"], t)
 
     except Exception as e:
-        # Sem RAG o fluxo continua; os prompts tratam a lista vazia.
-        print(f"\nConhecimento: busca indisponível ({e}). Seguindo sem base.\n")
-        return {"conhecimento": []}
+        # Falha na busca (não é o mesmo que "a base não contém"): o navegador encerra
+        # o fluxo avisando que a base está indisponível, sem propor nenhuma ação.
+        print(f"\nConhecimento: busca indisponível ({e}).\n")
+        return {"conhecimento": [], "erro_rag": f"{type(e).__name__}: {e}"[:300]}
 
     print()
-    return {"conhecimento": list(trechos_por_id.values())}
+    return {"conhecimento": list(trechos_por_id.values()), "erro_rag": ""}

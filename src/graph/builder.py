@@ -3,12 +3,14 @@ from langgraph.checkpoint.memory import InMemorySaver
 
 from src.graph.state import State
 from src.graph.routing import (
+    route_after_entender,
     route_after_navegador,
     router_after_review,
     route_after_validate,
     route_after_execute,
 )
 
+from src.graph.Node.entender_pergunta import entender_pergunta
 from src.graph.Node.ler_estado import ler_estado
 from src.graph.Node.consultar_conhecimento import consultar_conhecimento
 from src.graph.Node.navegador import navegador
@@ -24,6 +26,7 @@ from src.graph.Node.finalizar import finalizar
 builder = StateGraph(State)
 
 # Registro dos nós
+builder.add_node("entender_pergunta", entender_pergunta)
 builder.add_node("ler_estado", ler_estado)
 builder.add_node("consultar_conhecimento", consultar_conhecimento)
 builder.add_node("navegador", navegador)
@@ -36,7 +39,17 @@ builder.add_node("escalar", escalar)
 builder.add_node("finalizar", finalizar)
 
 # Fluxo inicial
-builder.add_edge(START, "ler_estado")
+builder.add_edge(START, "entender_pergunta")
+
+# Decisão após entender a pergunta: fora do escopo é recusada já aqui
+builder.add_conditional_edges(
+    "entender_pergunta",
+    route_after_entender,
+    {
+        "ler_estado": "ler_estado",
+        "responder": "responder",
+    }
+)
 builder.add_edge("ler_estado", "consultar_conhecimento")
 builder.add_edge("consultar_conhecimento", "navegador")
 

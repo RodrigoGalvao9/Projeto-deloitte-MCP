@@ -1,6 +1,14 @@
 from src.graph.state import State
 
 
+def route_after_entender(state: State) -> str:
+    """Pergunta fora do escopo é recusada antes de gastar leitura de estado, busca e navegador."""
+    if state.get("proposta", {}).get("acao") == "RECUSAR":
+        return "responder"
+
+    return "ler_estado"
+
+
 def route_after_navegador(state: State) -> str:
     """Ações que alteram (ou mantêm) o navio passam pelo revisor.
     Perguntas informativas ou fora do escopo são respondidas direto."""

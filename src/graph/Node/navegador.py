@@ -14,8 +14,23 @@ class Proposta(BaseModel):
     motivo: str
 
 
+MOTIVO_BASE_INDISPONIVEL = (
+    "Não consegui consultar a base de conhecimento agora, então não vou propor "
+    "nenhuma ação. Nenhuma alteração foi feita no navio. Tente novamente em instantes."
+)
+
+
 def navegador(state: State) -> State:
     """Função que representa o nó do navegador no grafo de estados"""
+
+    # Busca falhou (RAG/MCP fora do ar): sem as regras da base não há decisão a tomar.
+    # Encerra via RESPONDER, sem chamar o LLM e sem passar por revisor/escalar.
+    # Diferente de "a base não contém", em que a busca funcionou e o LLM decide.
+    erro_rag = state.get("erro_rag")
+    if erro_rag:
+        print(f"\nNavegador: base indisponível ({erro_rag}). Encerrando sem chamar o LLM.\n")
+        proposta = Proposta(acao="RESPONDER", motivo=MOTIVO_BASE_INDISPONIVEL)
+        return {"rodada": state["rodada"] + 1, "proposta": proposta.model_dump()}
 
     feedback = ""
     aprovado = state["revisao"].get("aprovado")
@@ -27,7 +42,8 @@ def navegador(state: State) -> State:
 
     pergunta = state.get("pergunta") or PERGUNTA_PADRAO
 
-    # Se o RAG estiver fora do ar, o nó anterior deixa a lista vazia e o prompt trata isso.
+    # Lista vazia aqui significa que a busca funcionou e não achou nada
+    # (falha de busca é tratada acima, via erro_rag); o prompt trata esse caso.
     conhecimento = formatar_conhecimento(state.get("conhecimento", []))
 
     mensagens = NAVEGADOR_PROMPT.format_messages(
