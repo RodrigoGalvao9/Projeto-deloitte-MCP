@@ -1,0 +1,8 @@
+# Dependências SÓ do servidor MCP (imagem Docker enxuta).
+# Depois de testar localmente, fixe as versões. No PowerShell:
+#   pip freeze | findstr /i "fastmcp qdrant-client fastembed python-dotenv"
+fastembed==0.9.1
+fastmcp==4.2.1
+fastmcp-slim==4.2.1
+python-dotenv==1.2.4
+qdrant-client==1.20.0

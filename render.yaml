@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: mcp-ocean
+    runtime: docker
+    plan: free
+    dockerfilePath: ./dockerfile
+    dockerContext: .
+    autoDeploy: true
+    envVars:
+      - key: QDRANT_URL          
+        sync: false
+      - key: QDRANT_API_KEY      
+        sync: false
+      - key: QDRANT_COLLECTION
+        value: conhecimento_maritimo
+      - key: MCP_AUTH_TOKEN     
+        generateValue: true

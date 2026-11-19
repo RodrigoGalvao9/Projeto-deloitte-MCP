@@ -1,0 +1,11 @@
+venv/
+.venv/
+.env
+.git/
+.vscode/
+__pycache__/
+*.pyc
+qdrant_storage/
+src/app/
+src/graph/
+src/scripts/
