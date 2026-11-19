@@ -13,7 +13,7 @@ RUN pip install --no-cache-dir -r requirements-server.txt
 
 # Código do RAG + download do modelo na build (evita baixar a cada reinício do serviço)
 COPY src/rag ./src/rag
-RUN python -c "from src.rag.embeddings import embed, embed_esparso; embed(['x']); embed_esparso(['x'])"
+RUN python -c "from src.rag.embeddings import embed_esparso; embed_esparso(['x'])"
 
 # Restante do que o servidor precisa
 COPY src/dados ./src/dados

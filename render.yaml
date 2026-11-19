@@ -3,7 +3,7 @@ services:
     name: mcp-ocean
     runtime: docker
     plan: free
-    dockerfilePath: ./dockerfile
+    dockerfilePath: ./Dockerfile
     dockerContext: .
     autoDeploy: true
     envVars:

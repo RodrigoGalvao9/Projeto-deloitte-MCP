@@ -12,7 +12,7 @@ from starlette.responses import JSONResponse
 # Coloca src/ no path para importar o pacote rag
 # (a pasta mcp-server tem hífen e o arquivo roda como script).
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from rag.embeddings import embed, embed_esparso  # noqa: E402
+from rag.embeddings import embed_esparso  # noqa: E402
 from rag.retriever import buscar, listar_topicos as _listar_topicos  # noqa: E402
 
 DADOS = Path(__file__).resolve().parent.parent / "dados" / "situacao_tempestade.json"
@@ -174,10 +174,12 @@ def set_speed(
 
 
 if __name__ == "__main__":
-    embed(["aquecimento"])  # carrega os modelos antes da primeira chamada
+    # Apenas o BM25 é carregado localmente.
+    # Embeddings densos são gerados sob demanda pela Cloudflare.
     embed_esparso(["aquecimento"])
+
     mcp.run(
         transport="http",
-        host=os.getenv("MCP_HOST", "127.0.0.1"),  # no Docker: 0.0.0.0
+        host=os.getenv("MCP_HOST", "0.0.0.0"),  # no Docker: 0.0.0.0
         port=int(os.getenv("PORT", "8000")),       # o Render define PORT
     )
