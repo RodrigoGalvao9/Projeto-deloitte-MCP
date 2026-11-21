@@ -1,436 +1,256 @@
-# Projeto Deloitte MCP
+# Ocean RAG MCP
 
-Aplicacao em Python que combina **LangGraph**, **FastMCP**, **Qdrant** e um provedor de LLM para simular a tomada de decisoes operacionais em uma frota maritima.
+Este repositório é o piloto da plataforma **Ocean**. Ele valida a integração entre RAG marítimo, LangGraph, FastMCP e a aplicação de ações operacionais sobre uma frota simulada.
 
-O operador escolhe um navio e faz uma pergunta em linguagem natural. O sistema:
+> Os dados são fictícios e servem apenas para demonstração. Não use as respostas para navegação real.
 
-1. consulta o estado do navio em um servidor MCP;
-2. busca trechos relevantes em uma base de conhecimento maritima (RAG);
-3. pede uma proposta ao agente Navegador;
-4. faz o agente Revisor validar a proposta contra a base;
-5. aplica uma alteracao de velocidade pela ferramenta MCP, quando aprovada;
-6. informa o resultado ou solicita aprovacao humana em caso de escalamento.
+## Plataforma Ocean
 
-> Os dados deste projeto sao **ficticios** e servem apenas para demonstracao. Nao use as respostas para navegacao real.
+O piloto está sendo evoluído para uma plataforma composta por quatro repositórios:
 
-## Recursos principais
+| Repositório | Responsabilidade |
+|---|---|
+| [Ocean-MCP-Ingestor](https://github.com/RodrigoGalvao9/Ocean-MCP-Ingestor) | Ingestão e indexação do conteúdo marítimo |
+| [ocean-agent-api](https://github.com/RodrigoGalvao9/ocean-agent-api) | API dos agentes e da lógica operacional |
+| [ocean-frontend](https://github.com/RodrigoGalvao9/ocean-frontend) | Interface para operadores |
+| [ocean-rag-mcp](https://github.com/RodrigoGalvao9/ocean-rag-mcp) | Piloto MCP/RAG; busca, estado da frota e execução de ações |
 
-- Interface interativa no terminal.
-- Grafo de decisao implementado com LangGraph.
-- Servidor MCP com FastMCP na porta `8000`.
-- Qdrant para busca vetorial na porta `6333`.
-- Embeddings locais com FastEmbed; nao exige uma chave de API de embeddings.
-- Suporte a Groq, OpenAI, Anthropic e Google Gemini.
-- Controle de versao, idempotencia e conflitos no MCP.
-- Fluxo humano de aprovacao em revisoes esgotadas.
+Este repositório demonstra o fluxo ponta a ponta em uma interface de terminal. A implementação da plataforma será distribuída entre os demais repositórios.
+
+## O que este piloto faz
+
+- Entende perguntas e instruções em linguagem natural.
+- Consulta o estado de uma frota fictícia.
+- Busca conhecimento marítimo no Qdrant usando busca híbrida densa + BM25.
+- Usa LangGraph para navegar entre leitura, análise, revisão e execução.
+- Expõe ferramentas MCP com FastMCP.
+- Aplica mudanças de velocidade com controle de versão e idempotência.
+- Solicita aprovação humana quando uma ação não é aprovada após as revisões.
 
 ## Arquitetura
 
 ```text
 Operador
   |
-  | pergunta no terminal
   v
 src/app/main.py
   |
   v
 LangGraph
+  |-- entender_pergunta
   |-- ler_estado
   |-- consultar_conhecimento
   |-- navegador
   |-- revisor
   |-- validar
   |-- executar
-  |-- confirmar/finalizar/escalar
-  |
-  +---- servidor MCP FastMCP (porta 8000)
-              |-- get_fleet_state
-              |-- buscar_conhecimento
-              +-- set_speed
-                       |
-                       v
-Qdrant (Docker, porta 6333)
-  +-- colecao conhecimento_maritimo
+  `-- confirmar / escalar / finalizar
+          |
+          v
+Servidor FastMCP
+  |-- get_fleet_state
+  |-- buscar_conhecimento
+  |-- listar_topicos
+  `-- set_speed
+          |
+          v
+Qdrant
+  `-- coleção conhecimento_maritimo
 ```
 
-Fluxos distintos:
+## Tecnologias
 
-- **Perguntas informativas:** Navegador usa `RESPONDER` e encerra sem alterar o navio.
-- **Fora do escopo:** Navegador usa `RECUSAR` e encerra sem alterar o navio.
-- **Acoes do navio:** Navegador usa `SET_SPEED` ou `NO_ACTION`, passara por revisao e, se aprovada, podera chamar o MCP.
+- Python
+- LangGraph
+- FastMCP
+- Qdrant
+- Cloudflare Workers AI para embeddings densos
+- BM25 local via FastEmbed
+- Docker Compose
+- Groq, OpenAI, Anthropic ou Google Gemini como provedores de LLM
 
-## Tecnologias e portas
+## Fluxos
 
-| Componente | Porta | Endpoint/comando |
-|---|---:|---|
-| FastMCP | `8000` | `http://127.0.0.1:8000/mcp` |
-| Qdrant REST | `6333` | `http://127.0.0.1:6333` |
-| Qdrant gRPC | `6334` | Uso interno/futuro |
-| Aplicacao Python | - | `python -m src.app.main` |
+- **Pergunta informativa:** responde sem alterar o navio.
+- **Pergunta fora do escopo:** recusa a resposta.
+- **Ação operacional:** passa por navegação, revisão e validação.
+- **Ação aprovada:** chama `set_speed` no servidor MCP.
+- **Conflito de estado:** relê o estado e tenta novamente.
+- **Revisões esgotadas:** solicita aprovação humana antes de continuar.
 
-## Estrutura do projeto
+## Estrutura
 
 ```text
-Projeto-deloitte-MCP/
+ocean-rag-mcp/
+|-- Dockerfile
 |-- docker-compose.yml
+|-- render.yaml
 |-- requirements.txt
-|-- README.MD
-|-- grafo.png
+|-- requirements-server.txt
 |-- src/
 |   |-- app/
-|   |   `-- main.py
 |   |-- dados/
-|   |   `-- situacao_tempestade.json
 |   |-- graph/
-|   |   |-- builder.py
-|   |   |-- routing.py
-|   |   |-- state.py
-|   |   |-- Node/
-|   |   |   |-- ler_estado.py
-|   |   |   |-- consultar_conhecimento.py
-|   |   |   |-- navegador.py
-|   |   |   |-- revisor.py
-|   |   |   |-- validar.py
-|   |   |   |-- executar.py
-|   |   |   |-- confirmar.py
-|   |   |   |-- escalar.py
-|   |   |   |-- responder.py
-|   |   |   `-- finalizar.py
-|   |   `-- prompt/
-|   |       |-- navegador_prompt.py
-|   |       `-- revisor_prompt.py
 |   |-- mcp-server/
-|   |   `-- mcp_server.py
 |   |-- rag/
-|   |   |-- config.py
-|   |   |-- embeddings.py
-|   |   |-- ingest.py
-|   |   `-- retriever.py
 |   |-- scripts/
-|   |   `-- testar_mcp.py
-|   |-- utils/
-|   |   |-- conhecimento.py
-|   |   |-- llm_adapter.py
-|   |   `-- mcp_client.py
-|   `-- visualizador_grafo.py
+|   `-- utils/
 `-- qdrant_storage/
 ```
 
-`qdrant_storage/` e `venv/` nao devem ser enviados ao repositorio. O volume Docker persiste os dados do Qdrant nesse diretorio local.
+`qdrant_storage/`, ambientes virtuais e arquivos `.env` são locais e não devem ser versionados.
 
-## Pre-requisitos
+## Pré-requisitos
 
-- Windows.
-- Docker Desktop com o engine ativo.
-- Docker Compose disponivel como `docker compose`.
-- Python 3.14 recomendado pelo ambiente atual.
-- PowerShell.
-- Uma chave de API do provedor escolhido.
-- Acesso a Internet no primeiro uso do modelo de embeddings.
+- Windows
+- Python 3.12 ou superior
+- Docker Desktop
+- Docker Compose
+- Conta e credenciais da Cloudflare para os embeddings densos
+- Uma chave de API do provedor de LLM escolhido
 
-Com Docker Desktop instalado, verifique os comandos:
-
-```powershell
-docker --version
-docker compose version
-```
-
-Verifique a sintaxe Docker sem subir containers:
-
-```powershell
-docker compose config
-```
-
-## Instalacao no Windows
+## Configuração no Windows
 
 Na raiz do projeto:
 
 ```powershell
-cd C:\Users\USUARIO\Desktop\Projeto-deloitte-MCP
-```
-
-### 1. Criar o ambiente virtual
-
-```powershell
 python -m venv venv
-```
-
-### 2. Ativar o ambiente
-
-PowerShell:
-
-```powershell
 .\venv\Scripts\Activate.ps1
+python -m pip install --upgrade pip
+python -m pip install -r requirements.txt
 ```
 
-Se a execucao de scripts estiver bloqueada, use somente para a sessao atual:
+Se a política do PowerShell bloquear scripts nesta sessão:
 
 ```powershell
 Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
 .\venv\Scripts\Activate.ps1
 ```
 
-Prompt bem-sucedido:
-
-```text
-(venv) PS C:\...>
-```
-
-### 3. Instalar as dependencias
+Crie um arquivo `.env` a partir de `.env.example`:
 
 ```powershell
-python -m pip install --upgrade pip
-python -m pip install -r requirements.txt
+Copy-Item .env.example .env
 ```
 
-## Configuracao do `.env`
-
-Crie um arquivo `.env` na raiz do projeto. Um exemplo minimo com Groq:
+Exemplo mínimo com Groq:
 
 ```dotenv
 LLM_PROVIDER=groq
 LLM_MODEL=llama-3.1-8b-instant
 GROQ_API_KEY=sua-chave-aqui
 
-SIMULAR_CONFLITO=false
+CLOUDFLARE_ACCOUNT_ID=seu-account-id
+CLOUDFLARE_API_TOKEN=seu-api-token
 
 QDRANT_URL=http://localhost:6333
 QDRANT_API_KEY=
 QDRANT_COLLECTION=conhecimento_maritimo
+
+MCP_SERVER_URL=http://127.0.0.1:8000/mcp
+MCP_AUTH_TOKEN=
+SIMULAR_CONFLITO=false
 ```
 
-Variaveis de ambiente:
+Não faça commit do `.env` ou das credenciais.
 
-| Variavel | Obrigatoria | Descricao |
-|---|---:|---|
-| `LLM_PROVIDER` | Sim | `groq`, `openai`, `anthropic` ou `google`. |
-| `LLM_MODEL` | Sim | Modelo correspondente ao provedor. |
-| `GROQ_API_KEY` | Groq | Chave da API Groq. |
-| `OPENAI_API_KEY` | OpenAI | Chave da API OpenAI, caso essa integracao seja usada pela sua biblioteca. |
-| `ANTHROPIC_API_KEY` | Anthropic | Chave da API Anthropic, caso essa integracao seja usada pela sua biblioteca. |
-| `GOOGLE_API_KEY` | Google | Chave da API Google, caso essa integracao seja usada pela sua biblioteca. |
-| `SIMULAR_CONFLITO` | Nao | `true` envia uma versao antiga uma vez para testar recuperacao de conflito. |
-| `QDRANT_URL` | Nao | Endereco do Qdrant; padrao `http://localhost:6333`. |
-| `QDRANT_API_KEY` | Nao | Chave do Qdrant hospedado/remoto; deixe vazia para o Docker local. |
-| `QDRANT_COLLECTION` | Nao | Nome da colecao; padrao `conhecimento_maritimo`. |
+### Variáveis principais
 
-Nao coloque chaves no terminal compartilhado nem commit o arquivo `.env`. Ele ja esta coberto pelo `.gitignore`.
+| Variável | Uso |
+|---|---|
+| `LLM_PROVIDER` | `groq`, `openai`, `anthropic` ou `google` |
+| `LLM_MODEL` | Modelo do provedor selecionado |
+| `GROQ_API_KEY`, `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GOOGLE_API_KEY` | Credencial do provedor correspondente |
+| `CLOUDFLARE_ACCOUNT_ID` | Conta usada para gerar embeddings |
+| `CLOUDFLARE_API_TOKEN` | Token autorizado a executar o modelo de embedding |
+| `QDRANT_URL` | Endereço do Qdrant |
+| `QDRANT_API_KEY` | Chave opcional para Qdrant remoto |
+| `QDRANT_COLLECTION` | Nome da coleção; padrão `conhecimento_maritimo` |
+| `MCP_SERVER_URL` | Endpoint HTTP usado pela aplicação |
+| `MCP_AUTH_TOKEN` | Token Bearer opcional compartilhado entre cliente e servidor |
+| `SIMULAR_CONFLITO` | `true` força uma versão antiga na primeira tentativa de ação |
 
-## Criar e subir os containers
+## Subir o Qdrant
 
-O arquivo `docker-compose.yml` inicia somente o Qdrant:
-
-```yaml
-services:
-  qdrant:
-    image: qdrant/qdrant:latest
-    container_name: qdrant
-    ports:
-      - "6333:6333"
-      - "6334:6334"
-    volumes:
-      - ./qdrant_storage:/qdrant/storage
-    restart: unless-stopped
-```
-
-Com Docker Desktop aberto, execute na raiz:
+Na raiz do projeto:
 
 ```powershell
 docker compose up -d
-```
-
-Verifique os containers:
-
-```powershell
 docker compose ps
-docker ps
 ```
 
-O resultado esperado mostra o container `qdrant` com o estado `Up/Running`.
+Serviços locais:
 
-Verifique a API diretamente:
+| Componente | Endereço |
+|---|---|
+| Qdrant REST | `http://127.0.0.1:6333` |
+| FastMCP HTTP | `http://127.0.0.1:8000/mcp` |
+| Health check MCP | `http://127.0.0.1:8000/health` |
+
+Verificação rápida:
 
 ```powershell
-Invoke-RestMethod -Uri "http://127.0.0.1:6333/collections" -Method Get
+Invoke-RestMethod "http://127.0.0.1:6333/collections" -Method Get
 ```
 
-Os logs podem ser acompanhados com:
-
-```powershell
-docker compose logs -f qdrant
-```
-
-Para parar sem apagar os dados:
+Para interromper o Qdrant sem apagar os dados:
 
 ```powershell
 docker compose stop
 ```
 
-Para iniciar novamente:
-
-```powershell
-docker compose start
-```
-
-Para parar e remover o container; os dados permanecem em `qdrant_storage/`:
-
-```powershell
-docker compose down
-```
-
-Para remover tambem o volume persistido localmente, nao use apenas este guia: faca backup e exclua manualmente apenas a pasta `qdrant_storage/` depois de confirmar que nao contem dados necessarios.
-
 ## Indexar o RAG
 
-Esta etapa e obrigatoria depois que o Qdrant foi criado pela primeira vez.
-
-Com o ambiente virtual ativo e o container `qdrant` rodando:
+Depois que o Qdrant estiver ativo:
 
 ```powershell
 python -m src.rag.ingest
 ```
 
-Saida esperada:
+O comando:
 
-```text
-10 documentos lidos de situacao_tempestade.json
-10 pontos gravados na colecao 'conhecimento_maritimo' (http://localhost:6333)
-```
+1. lê `src/dados/situacao_tempestade.json`;
+2. cria vetores densos pela Cloudflare;
+3. cria vetores esparsos BM25 localmente;
+4. recria a coleção no Qdrant;
+5. grava os documentos com payload de identificação e título.
 
-O que o comando faz:
+A reindexação recria a coleção. Execute-a novamente após alterar a base.
 
-1. le `src/dados/situacao_tempestade.json`;
-2. usa apenas os itens de `base_conhecimento`;
-3. cria o texto de cada documento com `titulo + texto`;
-4. gera vetores locais de 384 dimensoes com o modelo:
-   `sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2`;
-5. recria a colecao no Qdrant;
-6. grava os documentos como pontos, junto de `doc_id`, `titulo` e `tags`.
-
-A reindexacao apaga e recria a colecao. Execute-a sempre que alterar os documentos em `base_conhecimento`.
-
-O download do modelo FastEmbed pode demorar na primeira execucao. Depois, ele costuma ficar em cache local.
-
-### Testar a busca isoladamente
+Teste a busca isoladamente:
 
 ```powershell
-python -m src.rag.retriever "Como leio a tabua de mares?"
-python -m src.rag.retriever "Qual o limite de velocidade em tempestade na rota direta?"
+python -m src.rag.retriever "Como leio a tábua de marés?"
+python -m src.rag.retriever "Qual o limite de velocidade em tempestade na rota direta?" --modo hibrido
 ```
 
-Saida abreviada:
+## Executar o piloto
 
-```text
-Pergunta: ...
-1. [0.xxx] KB-009 - Limites de velocidade em tempestade
-...
-```
-
-Se aparecer `RAG_UNAVAILABLE` ou erro de conexao, confirme primeiro que o container esta rodando e que `QDRANT_URL` aponta para `http://localhost:6333`.
-
-## Executar o servidor MCP
-
-Abra o primeiro terminal na raiz do projeto e ative o ambiente virtual:
+Em um terminal, inicie o servidor MCP:
 
 ```powershell
 .\venv\Scripts\Activate.ps1
-python .\src\mcp-server\mcp_server.py
+python src/mcp-server/mcp_server.py
 ```
 
-Saida esperada em uma versao FastMCP recente:
-
-```text
-Starting MCP server 'ocean' with transport 'http' on http://127.0.0.1:8000/mcp
-```
-
-Mantenha este terminal aberto.
-
-Antes da primeira chamada MCP, o servidor:
-
-- pre-carrega o modelo de embeddings;
-- conecta ao Qdrant;
-- expoe `get_fleet_state`, `buscar_conhecimento` e `set_speed`.
-
-No MCP existem tres ferramentas:
-
-| Ferramenta | Finalidade |
-|---|---|
-| `get_fleet_state` | Retorna navios e `state_version` atuais. |
-| `buscar_conhecimento` | Faz busca vetorial no Qdrant e retorna trechos. |
-| `set_speed` | Aplica velocidade com versao esperada e chave de idempotencia. |
-
-## Executar a aplicacao
-
-Abra um segundo terminal na raiz:
+Em outro terminal, inicie a interface:
 
 ```powershell
 .\venv\Scripts\Activate.ps1
 python -m src.app.main
 ```
 
-Escolha o navio:
+No terminal da aplicação:
 
-```text
-1. S1-FAROL
-2. S2-MARE
-3. S3-CORAL
-```
+- escolha um dos navios simulados;
+- digite uma pergunta ou instrução;
+- use `trocar` para selecionar outro navio;
+- use `sair` para encerrar;
+- pressione `Enter` para executar a avaliação padrão.
 
-Depois digite uma pergunta. No prompt:
+## Teste do MCP
 
-- `Enter`: executa a avaliacao padrao da situacao;
-- `trocar`: escolhe outro navio;
-- `sair`: encerra o programa.
-
-O `thread_id` muda em cada execucao, por isso o checkpointer em memoria nao mistura conversas anteriores.
-
-## Exemplos de perguntas
-
-Todas as perguntas abaixo podem ser inseridas no terminal da aplicacao.
-
-### Fora da base maritima
-
-```text
-Qual a capital da Franca?
-```
-
-Resultado esperado: `RECUSAR`, pois a pergunta esta fora do escopo maritimo.
-
-### Entrada em porto com calado alto
-
-```text
-Quando devo entrar no porto com calado alto?
-```
-
-Deve recuperar trechos sobre janela de mare e folga sob a quilha.
-
-### Como ler uma tabua de mares
-
-```text
-Como leio a tabua de mares?
-```
-
-Deve recuperar `KB-006` e responder com preamar, baixa-mar, horario e altura.
-
-### Velocidade em tempestade na rota direta
-
-```text
-Qual o limite de velocidade em tempestade na rota direta?
-```
-
-Deve recuperar `KB-009` e responder que o limite da simulacao e 12 nos.
-
-### Avaliacao operacional
-
-```text
-Avalie a situacao do navio e decida a acao adequada.
-```
-
-Nesse fluxo o grafo pode propor `SET_SPEED` ou `NO_ACTION`, passar pelo revisor e aplicar a velocidade.
-
-## Testar o MCP isoladamente
-
-Com o servidor MCP ativo em outro terminal:
+Com o servidor ativo:
 
 ```powershell
 python -m src.scripts.testar_mcp
@@ -438,213 +258,87 @@ python -m src.scripts.testar_mcp
 
 O script verifica:
 
-1. aplicacao da primeira velocidade;
-2. repeticao da mesma chave com os mesmos parametros;
-3. reutilizacao indevida da chave com parametros diferentes;
-4. conflito de versao de estado.
+- aplicação de uma velocidade;
+- repetição idempotente da operação;
+- reutilização indevida da chave de idempotência;
+- conflito de versão do estado.
 
-Exemplo de resultados esperados:
+Reinicie o servidor para restaurar o estado inicial da frota após os testes.
 
-```text
-1 {'status': 'committed', 'state_version': 2, ...}
-2 {..., 'duplicate': True}
-3 {'error': {'code': 'IDEMPOTENCY_KEY_REUSED', ...}}
-4 {'error': {'code': 'STATE_VERSION_CONFLICT', ...}}
-```
+## Controle de concorrência
 
-A execucao altera o estado em memoria do servidor MCP. Reinicie o servidor para voltar os navios ao estado inicial do JSON.
+`set_speed` utiliza:
 
-## Controle de concorrencia e idempotencia
+- `expected_state_version` para rejeitar alterações sobre estado antigo;
+- `idempotency_key` para evitar execuções repetidas;
+- hash dos parâmetros para impedir o uso da mesma chave com valores diferentes.
 
-`set_speed` usa:
+Ao receber `STATE_VERSION_CONFLICT`, o LangGraph relê o estado e tenta novamente.
 
-- `expected_state_version`: rejeita alteracoes sobre uma versao antiga;
-- `idempotency_key`: impede execucao repetida da mesma operacao;
-- hash dos parametros: rejeita reutilizacao da chave com valores diferentes.
-
-Se o servidor retornar `STATE_VERSION_CONFLICT`, o LangGraph relera o estado e tentara novamente ate duas vezes.
-
-Para exercitar esse fluxo automaticamente:
+Para testar esse comportamento:
 
 ```dotenv
 SIMULAR_CONFLITO=true
 ```
 
-Na primeira tentativa, `executar.py` envia deliberadamente `state_version - 1`. Reinicie a aplicacao ou reinicie o servidor MCP apos os testes para evitar estado acumulado.
-
-## Fluxo LangGraph
-
-```text
-START
-  -> ler_estado
-  -> consultar_conhecimento
-  -> navegador
-
-navegador
-  -> RESPONDER ou RECUSAR
-       -> responder -> END
-
-navegador
-  -> SET_SPEED ou NO_ACTION
-       -> revisor
-
-revisor
-  -> aprovado
-       -> validar
-       -> executar
-       -> confirmar
-       -> finalizar -> END
-
-revisor
-  -> rejeitado
-       -> tenta novamente por ate 2 rodadas
-       -> esgotado
-            -> escalar
-            -> aprovacao humana
-            -> finalizar -> END
-```
-
-Ao escalar, a aplicacao imprime os dados da proposta e pergunta:
-
-```text
-Deseja continuar? (s/n)
-```
-
-Se responder `s`, o operador pode informar um motivo de excecao.
-
-## Gerar o grafo visual
-
-Existem duas formas principais de gerar o diagrama.
-
-### Opcao 1: gerar diretamente pelo terminal
-
-Com o ambiente virtual ativo, na raiz do projeto:
+## Ordem completa de execução
 
 ```powershell
-python -c "from src.graph.builder import graph; graph.get_graph().draw_mermaid_png(output_file_path='grafo.png')"
-```
-
-Para imprimir apenas o Mermaid:
-
-```powershell
-python -c "from src.graph.builder import graph; print(graph.get_graph().draw_mermaid())"
-```
-
-### Opcao 2: gerar pelo IPython ou Jupyter
-
-Com o ambiente virtual ativo, abra o IPython:
-
-```powershell
-ipython
-```
-
-Dentro do IPython, execute o visualizador:
-
-```python
-%run src/visualizador_grafo.py
-```
-
-Depois gere o arquivo PNG na raiz do projeto:
-
-```python
-from src.graph.builder import graph
-
-graph.get_graph().draw_mermaid_png(output_file_path="grafo.png")
-```
-
-O IPython tradicional pode mostrar apenas:
-
-```text
-<IPython.core.display.Image object>
-```
-
-Isso nao impede a geracao do arquivo. Se o objetivo for visualizar a imagem diretamente no VS Code, crie um notebook `grafo.ipynb` e execute uma celula com:
-
-```python
-from src.graph.builder import graph
-
-grafo = graph.get_graph().draw_mermaid_png(output_file_path="grafo.png")
-```
-
-Em seguida, abra o arquivo `grafo.png` na raiz do projeto.
-
-O projeto ja inclui `grafo.png`. Ele pode ser regenerado depois de alterar `src/graph/builder.py` ou `src/graph/routing.py`.
-
-## Ordem completa de inicializacao
-
-```powershell
-# Terminal 0 - raiz do projeto
-.\venv\Scripts\Activate.ps1
+# Terminal 1
 docker compose up -d
-docker compose ps
 python -m src.rag.ingest
 
-# Terminal 1
-.\venv\Scripts\Activate.ps1
-python .\src\mcp-server\mcp_server.py
-
 # Terminal 2
+.\venv\Scripts\Activate.ps1
+python src/mcp-server/mcp_server.py
+
+# Terminal 3
 .\venv\Scripts\Activate.ps1
 python -m src.app.main
 ```
 
-## Solucao de problemas
+## Deploy do servidor MCP
 
-### `docker` nao foi reconhecido
+O `Dockerfile` gera uma imagem enxuta com o servidor MCP e suas dependências.
 
-- Instale ou abra o Docker Desktop.
-- Reinicie o PowerShell depois da instalacao.
-- Confirme `docker --version` e `docker compose version`.
+O `render.yaml` configura o serviço `ocean-rag-mcp` no Render e solicita:
 
-### Porta `6333` em uso
+- `QDRANT_URL`
+- `QDRANT_API_KEY`
+- `MCP_AUTH_TOKEN`
+- `CLOUDFLARE_ACCOUNT_ID`
+- `CLOUDFLARE_API_TOKEN`
+
+No Render, configure o `PORT` automaticamente; o servidor também aceita `MCP_HOST` e usa `0.0.0.0` por padrão.
+
+## Solução de problemas
+
+### Porta ocupada
 
 ```powershell
 docker compose ps
 docker compose down
 Get-NetTCPConnection -LocalPort 6333
+Get-NetTCPConnection -LocalPort 8000
 ```
 
-Se outro processo usa a porta, encerre-o de forma controlada ou altere as duas configuracoes:
-
-1. o mapeamento em `docker-compose.yml`, por exemplo `16333:6333`;
-2. `QDRANT_URL=http://localhost:16333` no `.env`.
-
-### Porta `8000` em uso
-
-Confirme no terminal MCP qual processo inicia o servidor. Se houver outra instancia MCP, encerre-a antes de iniciar outra e tente novamente.
-
-### `Collection not found`
-
-Execute a ingestao:
+### Coleção não encontrada
 
 ```powershell
 python -m src.rag.ingest
 ```
 
-### Busca sem resultados ou resultados ruins
+### Embeddings indisponíveis
 
-- confira se o JSON da base foi alterado e reexecute a ingestao;
-- use termos presentes na base;
-- teste a busca diretamente com `python -m src.rag.retriever "..."`
-- verifique se o container Qdrant continua ativo.
+Confirme `CLOUDFLARE_ACCOUNT_ID` e `CLOUDFLARE_API_TOKEN` no `.env` e execute o ingest novamente.
 
-### `LLM_PROVIDER nao foi definido`
+### Servidor MCP sem autenticação
 
-Confira o `.env` na raiz e confirme:
+O servidor permite acesso local sem `MCP_AUTH_TOKEN`. Em ambientes remotos, configure o mesmo token no servidor e em `MCP_AUTH_TOKEN` da aplicação cliente.
 
-```dotenv
-LLM_PROVIDER=groq
-LLM_MODEL=llama-3.1-8b-instant
-GROQ_API_KEY=sua-chave
-```
+## Segurança
 
-O adaptador em `src/utils/llm_adapter.py` reconhece somente os provedores `groq`, `openai`, `anthropic` e `google`.
-
-### RAG indisponivel mas aplicacao continua
-
-O codigo foi preparado para continuar sem o RAG:
-
-- `consultar_conhecimento` registra a falha e entrega uma lista vazia;
-- o navegador recebe uma mensagem informando que a base esta vazia;
-- em caso de decisao de velocidade, o navegador deve usar `NO_ACTION`;
-- em caso de pergunta informativa, deve responder que a informacao nao esta disponivel.
+- Nunca commit chaves ou tokens.
+- Mantenha dados fictícios separados de dados reais.
+- Não exponha o piloto sem autenticação em redes públicas.
+- Valide propostas de ação antes de chamá-las em sistemas reais.
